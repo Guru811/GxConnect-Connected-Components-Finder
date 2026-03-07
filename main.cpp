@@ -9,10 +9,7 @@
 
 using namespace std;
 
-// ─────────────────────────────────────────────
 //  Utility
-// ─────────────────────────────────────────────
-
 void blank() { cout << "\n"; }
 
 void heading(const string& title) {
@@ -29,10 +26,7 @@ void subheading(const string& title) {
     cout << "  ----------------------------------------------------------\n";
 }
 
-// ─────────────────────────────────────────────
 //  Graph — Adjacency list, undirected
-// ─────────────────────────────────────────────
-
 class Graph {
 public:
     int V;
@@ -72,10 +66,7 @@ public:
     }
 };
 
-// ─────────────────────────────────────────────
 //  Main
-// ─────────────────────────────────────────────
-
 int main() {
     heading("GxConnect  —  Feature 1: Core Graph Structure");
 
