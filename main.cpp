@@ -1,6 +1,8 @@
 /*
   GxConnect - Connected Components Finder
+  Feature 1: Core Graph Structure
   Feature 2: BFS Algorithm
+  Feature 3: DFS Algorithm
 */
 
 #include <iostream>
@@ -75,18 +77,47 @@ AlgoResult runBFS(const Graph& g) {
         if (!visited[i]) {
             vector<int> comp;
             queue<int> q;
-            q.push(i);
-            visited[i] = true;
-            ops++;
+            q.push(i); visited[i] = true; ops++;
             while (!q.empty()) {
                 int node = q.front(); q.pop();
-                comp.push_back(node);
-                ops++;
+                comp.push_back(node); ops++;
                 for (int nb : g.adj[node]) {
                     ops++;
                     if (!visited[nb]) { visited[nb] = true; q.push(nb); }
                 }
             }
+            res.components.push_back(comp);
+        }
+    }
+
+    auto t1 = high_resolution_clock::now();
+    res.microseconds = duration_cast<microseconds>(t1 - t0).count();
+    res.operations = ops;
+    res.componentCount = (int)res.components.size();
+    return res;
+}
+
+// Finds all connected components using Depth-First Search (O(V + E))
+AlgoResult runDFS(const Graph& g) {
+    AlgoResult res;
+    res.name = "DFS";
+    res.complexity = "O(V + E)";
+    int ops = 0;
+    vector<bool> visited(g.V, false);
+    auto t0 = high_resolution_clock::now();
+
+    // Recursive lambda that visits all nodes in the current component
+    function<void(int, vector<int>&)> dfs = [&](int u, vector<int>& comp) {
+        visited[u] = true;
+        comp.push_back(u);
+        ops++;
+        for (int nb : g.adj[u]) { ops++; if (!visited[nb]) dfs(nb, comp); }
+    };
+
+    for (int i = 0; i < g.V; i++) {
+        if (!visited[i]) {
+            vector<int> comp;
+            dfs(i, comp);
             res.components.push_back(comp);
         }
     }
@@ -117,15 +148,15 @@ void printComponents(const AlgoResult& r) {
 }
 
 int main() {
-    heading("GxConnect  -  Feature 2: BFS Algorithm");
+    heading("GxConnect  -  Feature 3: BFS + DFS");
 
     Graph g(9);
     g.addEdge(0,1); g.addEdge(1,2); g.addEdge(2,3); g.addEdge(0,3);
     g.addEdge(4,5); g.addEdge(5,6);
     g.addEdge(7,8);
 
-    auto result = runBFS(g);
-    printComponents(result);
+    printComponents(runBFS(g));
+    printComponents(runDFS(g));
 
     return 0;
 }
