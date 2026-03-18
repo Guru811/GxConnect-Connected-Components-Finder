@@ -1,6 +1,6 @@
 /*
   GxConnect - Connected Components Finder
-  Feature 5: Step-by-Step Visualizers (BFS + DFS)
+  Feature 6: Algorithm Comparison Table
 */
 
 #include <iostream>
@@ -12,6 +12,7 @@
 #include <chrono>
 #include <numeric>
 #include <functional>
+#include <iomanip>
 
 using namespace std;
 using namespace chrono;
@@ -33,7 +34,7 @@ void subheading(const string& title) {
     cout << "  ----------------------------------------------------------\n";
 }
 
-// Undirected graph represented as an adjacency list
+// Undirected graph represented as an adjacency list and edge list
 class Graph {
 public:
     int V;
@@ -44,11 +45,9 @@ public:
 
     // Adds an undirected edge between u and v, ignoring duplicates and self-loops
     void addEdge(int u, int v) {
-        if (u >= 0 && u < V && v >= 0 && v < V && u != v)
-            if (find(adj[u].begin(), adj[u].end(), v) == adj[u].end()) {
-                adj[u].push_back(v);
-                adj[v].push_back(u);
-                edges.push_back({u, v});
+        if (u>=0&&u<V&&v>=0&&v<V&&u!=v)
+            if (find(adj[u].begin(),adj[u].end(),v)==adj[u].end()) {
+                adj[u].push_back(v); adj[v].push_back(u); edges.push_back({u,v});
             }
     }
 
@@ -63,15 +62,45 @@ struct AlgoResult {
     int operations, componentCount;
 };
 
+// Disjoint set data structure with path compression and union by rank
+class UnionFind {
+public:
+    vector<int> parent, rank_;
+    int components, operations;
+
+    UnionFind(int n): parent(n), rank_(n,0), components(n), operations(0) {
+        iota(parent.begin(),parent.end(),0);
+    }
+
+    // Returns the root of x's set, applying path compression recursively
+    int find(int x) { operations++; if(parent[x]!=x) parent[x]=find(parent[x]); return parent[x]; }
+
+    // Merges the sets containing x and y; returns false if already in the same set
+    bool unite(int x, int y) {
+        int px=find(x),py=find(y); if(px==py) return false;
+        if(rank_[px]<rank_[py]) swap(px,py);
+        parent[py]=px; if(rank_[px]==rank_[py]) rank_[px]++;
+        components--; operations++; return true;
+    }
+
+    // Groups all nodes by their root to produce the final list of components
+    vector<vector<int>> getComponents(int V) {
+        unordered_map<int,vector<int>> comp;
+        for(int i=0;i<V;i++) comp[find(i)].push_back(i);
+        vector<vector<int>> result;
+        for(auto&[k,v]:comp) result.push_back(v);
+        return result;
+    }
+};
+
 // Finds all connected components using Breadth-First Search (O(V + E))
 AlgoResult runBFS(const Graph& g) {
-    AlgoResult res; res.name="BFS"; res.complexity="O(V+E)";
+    AlgoResult res; res.name="BFS"; res.complexity="O(V + E)";
     int ops=0; vector<bool> visited(g.V,false);
     auto t0=high_resolution_clock::now();
     for(int i=0;i<g.V;i++){
         if(!visited[i]){
-            vector<int> comp; queue<int> q;
-            q.push(i); visited[i]=true; ops++;
+            vector<int> comp; queue<int> q; q.push(i); visited[i]=true; ops++;
             while(!q.empty()){
                 int node=q.front(); q.pop(); comp.push_back(node); ops++;
                 for(int nb:g.adj[node]){ops++; if(!visited[nb]){visited[nb]=true;q.push(nb);}}
@@ -87,7 +116,7 @@ AlgoResult runBFS(const Graph& g) {
 
 // Finds all connected components using Depth-First Search (O(V + E))
 AlgoResult runDFS(const Graph& g) {
-    AlgoResult res; res.name="DFS"; res.complexity="O(V+E)";
+    AlgoResult res; res.name="DFS"; res.complexity="O(V + E)";
     int ops=0; vector<bool> visited(g.V,false);
     auto t0=high_resolution_clock::now();
     // Recursive lambda that visits all nodes in the current component
@@ -104,128 +133,103 @@ AlgoResult runDFS(const Graph& g) {
     return res;
 }
 
-// Prints a step-by-step trace of BFS traversal, showing queue state at each step
-void bfsStepByStep(const Graph& g) {
-    heading("BFS  Step-by-Step Visualizer");
-    cout << "  How BFS works:\n";
-    cout << "  Start at a node, visit all neighbors before going deeper.\n";
-    cout << "  Uses a QUEUE  ( first in, first out )\n";
+// Finds all connected components using Union-Find (O(E * a(V)))
+AlgoResult runUnionFind(const Graph& g) {
+    AlgoResult res; res.name="Union-Find"; res.complexity="O(E * a(V))";
+    auto t0=high_resolution_clock::now();
+    UnionFind uf(g.V);
+    for(auto&[u,v]:g.edges) uf.unite(u,v);
+    res.components=uf.getComponents(g.V);
+    auto t1=high_resolution_clock::now();
+    res.microseconds=duration_cast<microseconds>(t1-t0).count();
+    res.operations=uf.operations; res.componentCount=(int)res.components.size();
+    return res;
+}
+
+// Prints a formatted comparison table of runtime, operation count, and component count for all algorithms
+void printComparisonTable(const vector<AlgoResult>& results, int V, int E) {
+    heading("Algorithm Comparison");
+
+    cout << "  Graph  :  Vertices = " << V << "   Edges = " << E << "\n";
     blank();
 
-    vector<bool> visited(g.V, false);
-    int compNum = 0;
+    cout << "  "
+         << left << setw(14) << "Algorithm"
+         << setw(14) << "Complexity"
+         << setw(14) << "Time (us)"
+         << setw(12) << "Operations"
+         << setw(12) << "Components"
+         << "\n";
+    cout << "  ----------------------------------------------------------\n";
 
-    for (int start = 0; start < g.V; start++) {
-        if (visited[start]) continue;
-        blank();
-        cout << "  Starting from Node " << start
-             << "  =>  Component #" << compNum << "\n";
-        cout << "  ----------------------------------------\n";
-
-        queue<int> q;
-        q.push(start); visited[start] = true;
-        int step = 1;
-
-        while (!q.empty()) {
-            cout << "\n  Step " << step++ << "\n";
-            cout << "  Queue  :  [ ";
-            queue<int> qcopy = q;
-            while (!qcopy.empty()) {
-                cout << qcopy.front(); qcopy.pop();
-                if (!qcopy.empty()) cout << "  ";
-            }
-            cout << " ]\n";
-
-            int node = q.front(); q.pop();
-            cout << "  Process:  Node " << node << "\n";
-            cout << "  Neighbors:\n";
-
-            for (int nb : g.adj[node]) {
-                if (!visited[nb]) {
-                    cout << "            Node " << nb << "  -> added to queue\n";
-                    visited[nb] = true; q.push(nb);
-                } else {
-                    cout << "            Node " << nb << "  -> already visited\n";
-                }
-            }
-            if (g.adj[node].empty()) cout << "            (no neighbors)\n";
-        }
-
-        blank();
-        cout << "  Component #" << compNum++ << " done.\n";
+    for (const auto& r : results) {
+        cout << "  "
+             << left << setw(14) << r.name
+             << setw(14) << r.complexity
+             << setw(14) << r.microseconds
+             << setw(12) << r.operations
+             << setw(12) << r.componentCount
+             << "\n";
     }
-
+    cout << "  ----------------------------------------------------------\n";
     blank();
-    cout << "  BFS complete.  Total components: " << compNum << "\n";
+
+    // Identifies and displays the fastest algorithm by elapsed time
+    auto fastest = min_element(results.begin(), results.end(),
+        [](const AlgoResult& a, const AlgoResult& b){ return a.microseconds < b.microseconds; });
+    cout << "  Fastest  :  " << fastest->name
+         << "  ( " << fastest->microseconds << " microseconds )\n";
+    blank();
+
+    // Renders a proportional bar chart where shorter bars indicate faster runtimes
+    cout << "  Speed comparison  ( shorter bar = faster ):\n";
+    blank();
+
+    long long maxT = max(1LL, max_element(results.begin(), results.end(),
+        [](const AlgoResult& a, const AlgoResult& b){ return a.microseconds < b.microseconds; })->microseconds);
+
+    for (const auto& r : results) {
+        int bar = (int)(30.0 * r.microseconds / maxT) + 1;
+        cout << "  " << left << setw(12) << r.name << "  |";
+        for (int x = 0; x < bar; x++) cout << "=";
+        cout << "  " << r.microseconds << " us\n";
+    }
     blank();
 }
 
-// Prints a step-by-step trace of DFS traversal, showing stack state at each step
-void dfsStepByStep(const Graph& g) {
-    heading("DFS  Step-by-Step Visualizer");
-    cout << "  How DFS works:\n";
-    cout << "  Start at a node, go as deep as possible before backtracking.\n";
-    cout << "  Uses a STACK  ( last in, first out )\n";
-    blank();
-
-    vector<bool> visited(g.V, false);
-    int compNum = 0;
-
-    for (int start = 0; start < g.V; start++) {
-        if (visited[start]) continue;
-        blank();
-        cout << "  Starting from Node " << start
-             << "  =>  Component #" << compNum << "\n";
-        cout << "  ----------------------------------------\n";
-
-        stack<int> st;
-        st.push(start); visited[start] = true;
-        int step = 1;
-
-        while (!st.empty()) {
-            cout << "\n  Step " << step++ << "\n";
-            stack<int> scopy = st;
-            vector<int> sv;
-            while (!scopy.empty()) { sv.push_back(scopy.top()); scopy.pop(); }
-            cout << "  Stack  :  top -> [ ";
-            for (int i = 0; i < (int)sv.size(); i++) {
-                cout << sv[i];
-                if (i < (int)sv.size()-1) cout << "  ";
-            }
-            cout << " ] <- bottom\n";
-
-            int node = st.top(); st.pop();
-            cout << "  Process:  Node " << node << "\n";
-            cout << "  Neighbors:\n";
-
-            for (int nb : g.adj[node]) {
-                if (!visited[nb]) {
-                    cout << "            Node " << nb << "  -> pushed to stack\n";
-                    visited[nb] = true; st.push(nb);
-                } else {
-                    cout << "            Node " << nb << "  -> already visited\n";
-                }
-            }
-            if (g.adj[node].empty()) cout << "            (no neighbors)\n";
+// Prints the components found by the first algorithm in the results vector
+void printComponents(const vector<AlgoResult>& results) {
+    if (results.empty()) return;
+    const auto& r = results[0];
+    subheading("Components Found");
+    for (int i = 0; i < (int)r.components.size(); i++) {
+        cout << "  Component " << i << "  ( " << r.components[i].size() << " nodes )  :  ";
+        for (int k = 0; k < (int)r.components[i].size(); k++) {
+            cout << r.components[i][k];
+            if (k < (int)r.components[i].size()-1) cout << " - ";
         }
-
-        blank();
-        cout << "  Component #" << compNum++ << " done.\n";
+        cout << "\n";
     }
-
     blank();
-    cout << "  DFS complete.  Total components: " << compNum << "\n";
+    cout << "  Total components  :  " << r.componentCount << "\n";
     blank();
 }
 
 int main() {
+    heading("GxConnect  -  Feature 6: Algorithm Comparison");
+
     Graph g(9);
     g.addEdge(0,1); g.addEdge(1,2); g.addEdge(2,3); g.addEdge(0,3);
     g.addEdge(4,5); g.addEdge(5,6);
     g.addEdge(7,8);
 
-    bfsStepByStep(g);
-    dfsStepByStep(g);
+    vector<AlgoResult> results;
+    results.push_back(runBFS(g));
+    results.push_back(runDFS(g));
+    results.push_back(runUnionFind(g));
+
+    printComparisonTable(results, g.V, g.edgeCount());
+    printComponents(results);
 
     return 0;
 }
